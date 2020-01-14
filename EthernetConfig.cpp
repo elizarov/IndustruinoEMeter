@@ -8,7 +8,7 @@
 
 //  ----------------- Networking parameters  -----------------
 
-byte mac[6]; // read from RTC EEPROM
+byte mac[6] = { 0x50, 0x34, 0xd5, 0x35, 0x3c, 0x02 }; // radnomly generated
 IPAddress localIp(192, 168, 3, 6);
 IPAddress dnsIp(192, 168, 3, 1);
 IPAddress gwIp(192, 168, 3, 1);
@@ -44,6 +44,7 @@ void readMACfromRTC() {
 }
 
 void ethernetSetup() {
+  // Reading MAC does not work... (hangs)
   //readMACfromRTC();
   lcdLog.print("Ethernet: ");
   Ethernet.begin(mac, localIp, dnsIp, gwIp, netMask);

@@ -52,14 +52,9 @@ void reset() {
 void resetServerSetup() {
   if (!ethernetPresent) return;
   ethernetServer.begin();
-  lcdLog.print("http://");
   lcdLog.print(localIp);
   lcdLog.print(":");
   lcdLog.print(port);
-  lcdLog.print("/");
-  lcdLog.print(pathStr);
-  lcdLog.print("/");
-  lcdLog.print(resetStr);
   lcdLog.println();
 }
 
