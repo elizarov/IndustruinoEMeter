@@ -12,7 +12,7 @@ void lcdSetup();
 class LcdLogPrint : public Print {
 public:
   virtual size_t write(uint8_t b);
-  void printlnAt(int row, char* msg, bool log);
+  void reset(bool log);
 };
 
 extern LcdLogPrint lcdLog;

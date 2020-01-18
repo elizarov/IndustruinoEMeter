@@ -10,9 +10,9 @@ extern fixnum32_1 volts[4];
 extern fixnum32_1 amps[4];
 extern fixnum32_1 watts[4];
 extern fixnum32_1 hertz;
-extern fixnum32_0 totalEnergy[TARIFFS + 1];
-extern fixnum32_0 curDayEnergy[TARIFFS + 1];
-extern fixnum32_0 prevDayEnergy[TARIFFS + 1];
+extern fixnum32_3 totalEnergy[TARIFFS + 1];
+extern fixnum32_3 curDayEnergy[TARIFFS + 1];
+extern fixnum32_3 prevDayEnergy[TARIFFS + 1];
 extern int8_t validValues;
 extern int8_t expectedValues;
 

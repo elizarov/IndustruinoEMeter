@@ -22,9 +22,9 @@ fixnum32_1 volts[4];
 fixnum32_1 amps[4];
 fixnum32_1 watts[4];
 fixnum32_1 hertz;
-fixnum32_0 totalEnergy[TARIFFS + 1];
-fixnum32_0 curDayEnergy[TARIFFS + 1];
-fixnum32_0 prevDayEnergy[TARIFFS + 1];
+fixnum32_3 totalEnergy[TARIFFS + 1];
+fixnum32_3 curDayEnergy[TARIFFS + 1];
+fixnum32_3 prevDayEnergy[TARIFFS + 1];
 int8_t validValues = 0;
 int8_t expectedValues = 0;
 
@@ -70,11 +70,11 @@ public:
 // x50 -- for prev day
 struct ReadEnergyReq : public Req {
 private:
-  fixnum32_0& value;
+  fixnum32_3& value;
   uint8_t num;
   uint8_t tariff;
 public:
-  ReadEnergyReq(fixnum32_0& _value, uint8_t _num, uint8_t _tariff) : value(_value), num(_num), tariff(_tariff) {}  
+  ReadEnergyReq(fixnum32_3& _value, uint8_t _num, uint8_t _tariff) : value(_value), num(_num), tariff(_tariff) {}  
   virtual uint8_t req_size();
   virtual uint8_t res_size();
   virtual void request();
@@ -208,12 +208,12 @@ bool ReadEnergyReq::response() {
     ((uint32_t)buf[4] << 8) |
     ((uint32_t)buf[1] << 16) |
     ((uint32_t)buf[2] << 24);;
-  value = fixnum32_0(v);  
+  value = fixnum32_3(v);  
   return true;
 }
 
 void ReadEnergyReq::error(char* m) {
-  value = fixnum32_0(INVALID_VALUE);
+  value = fixnum32_3(INVALID_VALUE);
 }
 
 //------- TOP-LEVEL STATE ------

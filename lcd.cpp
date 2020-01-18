@@ -6,6 +6,7 @@ const int BL_PIN = 26; // LED backlight
 UC1701 lcd;
 LcdLogPrint lcdLog;
 int logLine = 0;
+bool logState = true;  
 Timeout serialTimeout;
 
 void lcdSetup() {
@@ -27,13 +28,12 @@ size_t LcdLogPrint::write(uint8_t b) {
     lcd.setCursor(0, ++logLine);
   } else
     lcd.write(b);
-  return SerialUSB.write(b);
+  if (logState) SerialUSB.write(b);  
+  return 1;
 }
 
-void LcdLogPrint::printlnAt(int row, char* msg, bool log) {
-  lcd.setCursor(0, row);
-  lcd.print(msg);  
-  logLine = row + 1;
-  lcd.setCursor(0, logLine);
-  if (log) SerialUSB.println(msg);
+void LcdLogPrint::reset(bool log) {
+   lcd.setCursor(0, 0);
+   logLine = 0;  
+   logState = log;
 }

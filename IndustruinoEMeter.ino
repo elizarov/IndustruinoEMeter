@@ -18,7 +18,7 @@ bool statusBlink;
 
 //------- LCD ------
 
-void updateLCDSummary(bool logStatus) {
+void updateLCDSummary() {
   //              01234567890123456789
   char buf[21] = "[?]  ??.?Hz   ?????W";
   int8_t missingValues = expectedValues - validValues;
@@ -38,23 +38,42 @@ void updateLCDSummary(bool logStatus) {
   buf[1] = status;
   hertz.format(buf + 5, 4, FMT_RIGHT | 1);
   watts[0].format(buf + 14, 5, FMT_RIGHT | 0);
-  lcdLog.printlnAt(0, buf, logStatus);
+  lcdLog.println(buf);
 }
 
-inline void updateLCDPhase(uint8_t i, bool logStatus) {
+void updateLCDPhase(uint8_t i) {
   //              01234567890123456789
   char buf[21] = "I: ???V ??.?A ?????W";
   buf[0] = '0' + i;
   volts[i].format(buf + 3, 3, FMT_RIGHT | 0);
   amps[i].format(buf + 8, 4, FMT_RIGHT | 1);
   watts[i].format(buf + 14, 5, FMT_RIGHT | 0);
-  lcdLog.printlnAt(i, buf, logStatus);
+  lcdLog.println(buf);
+}
+
+void updateLCDEneryHeader() {
+  //              012345678901234567890
+  char buf[22] = " -- TOTAL -- TODAY --";
+  lcdLog.println(buf);  
+}
+
+void updateLCDEnergy(uint8_t i) {
+  //              012345678901234567890
+  char buf[22] = "T| ??????.? |??.??kWh";
+  if (i > 0) buf[0] = '0' + i; 
+  totalEnergy[i].format(buf + 3, 8, FMT_RIGHT | 1);
+  curDayEnergy[i].format(buf + 13, 5, FMT_RIGHT | 2);
+  lcdLog.println(buf);
 }
 
 void updateLCD(bool logStatus) {
-  updateLCDSummary(logStatus);
+  lcdLog.reset(logStatus);
+  updateLCDSummary();
   for (uint8_t i = 1; i <= 3; i++)
-    updateLCDPhase(i, logStatus);
+    updateLCDPhase(i);
+  updateLCDEneryHeader();
+  for (uint8_t i = 0; i <= TARIFFS; i++)
+    updateLCDEnergy(i);
 }
 
 bool checkStatusBlink() {
