@@ -13,13 +13,8 @@ const uint8_t RS485_ADDR = 0; // any device
 
 //------- TIMING ------
 
-const unsigned long UPDATE_PERIOD = 500;
 const unsigned long RS485_TIMEOUT = 200;
-const unsigned long RS485_PRE_DELAY = 5;
-const unsigned long RS485_POST_DELAY = 5;
-
-// const unsigned long RS485_DELAY = 10;
-// const unsigned long RS485_FRAME_DELAY_US = 16500000 / RS485_BAUD * 2;
+const unsigned long RS485_DELAY = 3;
 
 const unsigned long OPEN_CHANNEL_RETRY = 1000L; // 1 sec
 const unsigned long OPEN_CHANNEL_PERIOD = 10000L; // 10 sec
@@ -36,8 +31,6 @@ int8_t validValues;
 
 //------- PRIVATE STATE ------
 
-Timeout updateTimeout(0);
-Timeout openChannelTimeout(0);
 bool channelOk;
 
 //------- CODE ------
@@ -49,12 +42,10 @@ int sendReceiveRaw(uint8_t* req, uint8_t req_size, uint8_t* resp, int resp_size)
     rs485.read();
   // write request
   digitalWrite(RS485_RTS_PIN, 1); // write
-  delay(RS485_PRE_DELAY); // wait for activation
+  delay(RS485_DELAY); // wait for activation
   rs485.write(req, req_size);
   rs485.flush();
-  delay(RS485_POST_DELAY);
   digitalWrite(RS485_RTS_PIN, 0); // read
-  //delayMicroseconds(RS485_FRAME_DELAY_US); // wait for frame to go
   // read response
   Timeout timeout(RS485_TIMEOUT);
   int n = 0;
@@ -107,17 +98,10 @@ bool openChannel() {
   return ok;
 }
 
-bool checkChannel() {
-  if (openChannelTimeout.check()) {
-      channelOk = openChannel();
-      openChannelTimeout.reset(channelOk ? OPEN_CHANNEL_PERIOD : OPEN_CHANNEL_RETRY);
-  }
-  return channelOk;
-}
-
 const int32_t INVALID_VALUE = 0x7fffffffL;
 
 int32_t readValue(uint8_t code) {
+  if (!channelOk) return INVALID_VALUE;
   const uint8_t req_size = 6;
   uint8_t req[req_size];
   req[0] = RS485_ADDR;
@@ -140,6 +124,7 @@ int32_t readValue(uint8_t code) {
 // x40 -- for current day
 // x50 -- for prev day
 int32_t readEnergy(uint8_t num) {
+  if (!channelOk) return INVALID_VALUE;
   const uint8_t req_size = 6;
   uint8_t req[req_size];
   req[0] = RS485_ADDR;
@@ -169,8 +154,7 @@ void setupMercury() {
 }
 
 bool checkMercury() {
-  if (!updateTimeout.check()) return false;
-  updateTimeout.reset(UPDATE_PERIOD);
+  channelOk = openChannel();
   int8_t cnt = 0;
   for (uint8_t i = 1; i <= 3; i++)
     cnt += updateValue(volts[i], fixnum32_2(readValue(0x10 + i)));
@@ -182,5 +166,5 @@ bool checkMercury() {
   cnt += updateValue(curDayEnergy, fixnum32_0(readEnergy(0x40)));
   cnt += updateValue(prevDayEnergy, fixnum32_0(readEnergy(0x50)));
   validValues = cnt;
-  return true;
+  return channelOk;
 }
