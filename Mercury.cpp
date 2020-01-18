@@ -25,11 +25,13 @@ fixnum32_1 hertz;
 fixnum32_0 totalEnergy[TARIFFS + 1];
 fixnum32_0 curDayEnergy[TARIFFS + 1];
 fixnum32_0 prevDayEnergy[TARIFFS + 1];
-int8_t validValues;
+int8_t validValues = 0;
+int8_t expectedValues = 0;
 
 //------- REQUESTS ------
 
 struct Req {
+  Req* next = nullptr;
   virtual uint8_t req_size() = 0;
   virtual uint8_t res_size() = 0;
   virtual void request() = 0; // puts request in buf
@@ -216,58 +218,71 @@ void ReadEnergyReq::error(char* m) {
 
 //------- TOP-LEVEL STATE ------
 
-Req* reqs[EXPECTED_VALUES];
-int cur_index;
+Req* first_req = nullptr;
+Req* last_req = nullptr;
+Req* cur_req = nullptr;
 int cur_state;
 int ok_values;
 
 //------- TOP-LEVEL SETUP/CHECK ------
+
+void add(Req* req) {
+  if (first_req == nullptr) first_req = req;
+  if (last_req != nullptr) last_req->next = req;
+  last_req = req;
+  expectedValues++;
+}
+
+void reinitLoop() {
+  cur_req = first_req;
+  cur_state = 0;
+  ok_values = 0;
+}
 
 void setupMercury() {
   // init hardware
   rs485.begin(RS485_BAUD);
   pinMode(RS485_RTS_PIN, OUTPUT);
   // allocate requests
-  reqs[0] = new OpenChannelReq();
+  add(new OpenChannelReq());
   for (uint8_t i = 1; i <= 3; i++)
-    reqs[0 + i] = new ReadValueReq<2>(volts[i], 0x10 + i);
+    add(new ReadValueReq<2>(volts[i], 0x10 + i));
   for (uint8_t i = 1; i <= 3; i++)
-    reqs[3 + i] = new ReadValueReq<3>(amps[i], 0x20 + i);
+    add(new ReadValueReq<3>(amps[i], 0x20 + i));
   for (uint8_t i = 0; i <= 3; i++)
-    reqs[7 + i] = new ReadValueReq<2>(watts[i], 0x00 + i);
-  reqs[11] = new ReadValueReq<2>(hertz, 0x40);  
+    add(new ReadValueReq<2>(watts[i], 0x00 + i));
+  add(new ReadValueReq<2>(hertz, 0x40));  
   for (uint8_t i = 0; i <= TARIFFS; i++)
-    reqs[12 + 0 * TARIFFS + i] = new ReadEnergyReq(totalEnergy[i], 0x00, i);
+    add(new ReadEnergyReq(totalEnergy[i], 0x00, i));
   for (uint8_t i = 0; i <= TARIFFS; i++)
-    reqs[13 + 1 * TARIFFS + i] = new ReadEnergyReq(curDayEnergy[i], 0x40, i);
+    add(new ReadEnergyReq(curDayEnergy[i], 0x40, i));
   for (uint8_t i = 0; i <= TARIFFS; i++)
-    reqs[14 + 2 * TARIFFS + i] = new ReadEnergyReq(prevDayEnergy[i], 0x50, i);  
+    add(new ReadEnergyReq(prevDayEnergy[i], 0x50, i));  
+  reinitLoop();  
 }
 
 void resetAllValues() {
-  for (int i = 0; i < EXPECTED_VALUES; i++) {
-    reqs[i]->error("no channel");  
+  Req* req = first_req->next;
+  while(req != nullptr) {
+    req->error("no channel");  
+    req = req->next;
   }
 }
 
-void reinitLoop() {
-  cur_index = 0;
+bool checkNext() {
   cur_state = 0;
-  ok_values = 0;
-}
-
-bool checkDone() {
-  if (cur_index < EXPECTED_VALUES) return false; // not done
+  cur_req = cur_req->next;
+  if (cur_req != nullptr) return false; // not done yet
   validValues = ok_values;
   reinitLoop();  
   return true; // done
 }
 
 bool checkMercury() {
-  cur_state = reqs[cur_index]->check(cur_state);
+  cur_state = cur_req->check(cur_state);
   switch(cur_state) {
     case S_ERROR:
-      if (cur_index == 0) { 
+      if (cur_req == first_req) { 
         // open channel error - retry from scratch
         resetAllValues();
         reinitLoop();
@@ -276,15 +291,11 @@ bool checkMercury() {
         return wasOk;
       } else {
         // just a value error - skip it
-        cur_index++;
-        cur_state = 0;
-        return checkDone();
+        return checkNext();
       }
     case S_SUCCESS:
       ok_values++;
-      cur_index++;
-      cur_state = 0;
-      return checkDone();
+      return checkNext();
   }
   return false;
 }

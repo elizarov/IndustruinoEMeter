@@ -21,7 +21,7 @@ bool statusBlink;
 void updateLCDSummary(bool logStatus) {
   //              01234567890123456789
   char buf[21] = "[?]  ??.?Hz   ?????W";
-  int8_t missingValues = EXPECTED_VALUES - validValues;
+  int8_t missingValues = expectedValues - validValues;
   char status;
   if (statusBlink)
     status = ' ';

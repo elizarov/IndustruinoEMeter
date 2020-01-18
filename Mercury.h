@@ -14,8 +14,7 @@ extern fixnum32_0 totalEnergy[TARIFFS + 1];
 extern fixnum32_0 curDayEnergy[TARIFFS + 1];
 extern fixnum32_0 prevDayEnergy[TARIFFS + 1];
 extern int8_t validValues;
-
-const int8_t EXPECTED_VALUES = 15 + 3 * TARIFFS;
+extern int8_t expectedValues;
 
 void setupMercury();
 bool checkMercury();
