@@ -28,8 +28,11 @@ extern fixnum32_1 hertz;
 extern fixnum32_3 displayEnergy[TARIFFS + 1];
 extern fixnum32_3 curDayEnergy[TARIFFS + 1];
 extern fixnum32_3 prevDayEnergy[TARIFFS + 1];
+
 extern int8_t validValues;
 extern int8_t expectedValues;
+
+extern long mercuryUpdateTime;
 
 void setupMercury();
 bool checkMercury();

@@ -94,19 +94,24 @@ void updateLCDEnergy(uint8_t i) {
   lcdLog.println(buf);
 }
 
+
+
 void updateLCDTime() {
   //              01234567890123456789
   char buf[21] = "  ??-??-?? ??:??:?? ";
   char emp[21] = "                    ";
-  formatDecimal((int16_t)mercuryTime.year, buf + 2, 2, FMT_ZERO);
-  formatDecimal((int16_t)mercuryTime.month, buf + 5, 2, FMT_ZERO);
-  formatDecimal((int16_t)mercuryTime.date, buf + 8, 2, FMT_ZERO);
-  formatDecimal((int16_t)mercuryTime.hour, buf + 11, 2, FMT_ZERO);
-  formatDecimal((int16_t)mercuryTime.minute, buf + 14, 2, FMT_ZERO);
-  formatDecimal((int16_t)mercuryTime.second, buf + 17, 2, FMT_ZERO);
+  char upd[21] = " update: ???ms / ?? ";
+  formatDecimal(mercuryTime.year, buf + 2, 2, FMT_ZERO);
+  formatDecimal(mercuryTime.month, buf + 5, 2, FMT_ZERO);
+  formatDecimal(mercuryTime.date, buf + 8, 2, FMT_ZERO);
+  formatDecimal(mercuryTime.hour, buf + 11, 2, FMT_ZERO);
+  formatDecimal(mercuryTime.minute, buf + 14, 2, FMT_ZERO);
+  formatDecimal(mercuryTime.second, buf + 17, 2, FMT_ZERO);
+  formatDecimal(mercuryUpdateTime, upd + 9, 3, FMT_RIGHT);
+  formatDecimal(validValues, upd + 17, 2, FMT_RIGHT);
   lcdLog.println(buf);
   lcdLog.println(emp);
-  lcdLog.println(emp);  
+  lcdLog.println(upd);  
 }
 
 void updateLCD(bool logStatus) {

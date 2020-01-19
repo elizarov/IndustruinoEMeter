@@ -30,6 +30,7 @@ fixnum32_3 curDayEnergy[TARIFFS + 1];
 fixnum32_3 prevDayEnergy[TARIFFS + 1];
 int8_t validValues = 0;
 int8_t expectedValues = 1;
+long mercuryUpdateTime = 0;
 
 //------- REQUESTS ------
 
@@ -272,6 +273,7 @@ int ok_values;
 ReadEnergyReq* displayEnergyReq[TARIFFS+1];
 EnergyType lastDisplayEnergyType = E_TOTAL;
 bool refreshDisplayEnergy;
+long mercuryUpdateStart;
 
 //------- TOP-LEVEL SETUP/CHECK ------
 
@@ -287,6 +289,7 @@ void reinitLoop() {
   ok_values = 0;
   for (uint8_t i = 0; i <= TARIFFS; i++)
     displayEnergyReq[i]->type = displayEnergyType;
+  mercuryUpdateStart = millis();  
 }
 
 void setupMercury() {
@@ -339,6 +342,7 @@ bool checkNext() {
   cur_req = cur_req->next;
   if (cur_req != nullptr) return false; // not done yet
   validValues = ok_values;
+  mercuryUpdateTime = millis() - mercuryUpdateStart;
   reinitLoop();  
   return true; // done
 }
