@@ -25,7 +25,7 @@ Timeout statusTimeout(0);
 bool statusBlink;
 Timeout displayResetTimeout;
 
-enum { D_TOTAL, D_CUR_DAY, D_PREV_DAY, D_CUR_MONTH, D_PREV_MONTH, D_CUR_YEAR, D_PREV_YEAR, D_TIME, D_MAX };
+enum { D_TOTAL, D_CUR_DAY, D_PREV_DAY, D_CUR_MONTH, D_PREV_MONTH, D_PR_2_MONTH, D_CUR_YEAR, D_PREV_YEAR, D_TIME, D_MAX };
 
 char* displayNames[] = {
   "TOTAL",
@@ -33,12 +33,13 @@ char* displayNames[] = {
   "PREV DAY",
   "CUR MONTH",
   "PREV MONTH",
+  "PR-2 MONTH",
   "CUR YEAR",
   "PREV YEAR",
   "DATE/TIME"
 };
 
-EnergyType displayTypes[] = { E_TOTAL, E_CUR_DAY, E_PREV_DAY, E_CUR_MONTH, E_PREV_MONTH, E_CUR_YEAR, E_PREV_YEAR, E_TOTAL };
+EnergyType displayTypes[] = { E_TOTAL, E_CUR_DAY, E_PREV_DAY, E_CUR_MONTH, E_PREV_MONTH, E_PR_2_MONTH, E_CUR_YEAR, E_PREV_YEAR, E_TOTAL };
 
 int displayMode = D_TOTAL;
 

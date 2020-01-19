@@ -15,7 +15,7 @@ struct MercuryTime {
 
 extern MercuryTime mercuryTime;
 
-enum EnergyType { E_TOTAL, E_CUR_DAY, E_PREV_DAY, E_CUR_MONTH, E_PREV_MONTH, E_CUR_YEAR, E_PREV_YEAR };
+enum EnergyType { E_TOTAL, E_CUR_DAY, E_PREV_DAY, E_CUR_MONTH, E_PREV_MONTH, E_PR_2_MONTH, E_CUR_YEAR, E_PREV_YEAR };
 
 extern EnergyType displayEnergyType;
 

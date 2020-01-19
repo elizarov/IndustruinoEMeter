@@ -237,6 +237,7 @@ void ReadEnergyReq::request() {
     case E_PREV_DAY: num = 0x50; break;
     case E_CUR_MONTH: num = 0x30 + mercuryTime.month; break;
     case E_PREV_MONTH: num = 0x30 + (mercuryTime.month + 10) % 12 + 1; break;
+    case E_PR_2_MONTH: num = 0x30 + (mercuryTime.month + 9) % 12 + 1; break;
     case E_CUR_YEAR: num = 0x10; break;
     case E_PREV_YEAR: num = 0x20; break;
   }
@@ -269,6 +270,8 @@ Req* cur_req = nullptr;
 int cur_state;
 int ok_values;
 ReadEnergyReq* displayEnergyReq[TARIFFS+1];
+EnergyType lastDisplayEnergyType = E_TOTAL;
+bool refreshDisplayEnergy;
 
 //------- TOP-LEVEL SETUP/CHECK ------
 
@@ -292,6 +295,10 @@ void setupMercury() {
   pinMode(RS485_RTS_PIN, OUTPUT);
   // allocate requests
   add(new ReadTimeReq());
+  // display energy does first after time
+  for (uint8_t i = 0; i <= TARIFFS; i++)
+    add(displayEnergyReq[i] = new ReadEnergyReq(displayEnergy[i], E_TOTAL, i));
+  // the rest of it  
   for (uint8_t i = 1; i <= 3; i++)
     add(new ReadValueReq<2>(volts[i], 0x10 + i));
   for (uint8_t i = 1; i <= 3; i++)
@@ -299,8 +306,6 @@ void setupMercury() {
   for (uint8_t i = 0; i <= 3; i++)
     add(new ReadValueReq<2>(watts[i], 0x00 + i));
   add(new ReadValueReq<2>(hertz, 0x40));  
-  for (uint8_t i = 0; i <= TARIFFS; i++)
-    add(displayEnergyReq[i] = new ReadEnergyReq(displayEnergy[i], E_TOTAL, i));
   for (uint8_t i = 0; i <= TARIFFS; i++)
     add(new ReadEnergyReq(curDayEnergy[i], E_CUR_DAY, i));
   for (uint8_t i = 0; i <= TARIFFS; i++)
@@ -317,6 +322,19 @@ void resetAllValues() {
 }
 
 bool checkNext() {
+  if (lastDisplayEnergyType != displayEnergyType) {
+    // abort & restart on change of displayEnergyType
+    reinitLoop();
+    lastDisplayEnergyType = displayEnergyType;
+    refreshDisplayEnergy = true;
+    return false;
+  }
+  if (refreshDisplayEnergy && cur_req == displayEnergyReq[TARIFFS]) {
+    reinitLoop();
+    refreshDisplayEnergy = false;  
+    return true; // done refreshing
+  }
+  // regular -- work till the end
   cur_state = 0;
   cur_req = cur_req->next;
   if (cur_req != nullptr) return false; // not done yet
