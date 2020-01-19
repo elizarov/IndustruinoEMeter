@@ -2,6 +2,7 @@
 #include <Wire.h>
 #include <FixNum.h>
 #include <Timeout.h>
+#include <Button.h>
 #include <HardwareSerial.h>
 
 #include "lcd.h"
@@ -9,12 +10,36 @@
 #include "ResetServer.h"
 #include "Mercury.h"
 
-//------- ALL TIME DEFS ------
+//------- Button ------
 
-const unsigned int STATUS_BLINK_INTERVAL = 1000; // 1 sec
+Button upButton(23);
+Button enterButton(24);
+Button downButton(25);
+
+//------- STATE ------
+
+const unsigned long STATUS_BLINK_INTERVAL = 1000; // 1 sec
+const unsigned long DISPLAY_RESET_TIMEOUT = 10000; // 10 sec
 
 Timeout statusTimeout(0);
 bool statusBlink;
+Timeout displayResetTimeout;
+
+enum { D_TOTAL, D_CUR_DAY, D_PREV_DAY, D_MAX };
+
+char* displayNames[] = {
+  "TOTAL",
+  "CUR DAY",
+  "PREV DAY"
+};
+
+fixnum32_3* displayData[] = {
+  totalEnergy,
+  curDayEnergy,
+  prevDayEnergy,
+};
+
+int displayMode = D_TOTAL;
 
 //------- LCD ------
 
@@ -53,16 +78,17 @@ void updateLCDPhase(uint8_t i) {
 
 void updateLCDEneryHeader() {
   //              012345678901234567890
-  char buf[22] = " -- TOTAL -- TODAY --";
+  char buf[22] = " --               -- ";
+  char* name = displayNames[displayMode];
+  strncpy(&buf[4], name, strlen(name));
   lcdLog.println(buf);  
 }
 
 void updateLCDEnergy(uint8_t i) {
   //              012345678901234567890
-  char buf[22] = "T| ??????.? |??.??kWh";
+  char buf[22] = "T ????????.??kWh     ";
   if (i > 0) buf[0] = '0' + i; 
-  totalEnergy[i].format(buf + 3, 8, FMT_RIGHT | 1);
-  curDayEnergy[i].format(buf + 13, 5, FMT_RIGHT | 2);
+  displayData[displayMode][i].format(buf + 2, 11, FMT_RIGHT | 2);
   lcdLog.println(buf);
 }
 
@@ -83,6 +109,26 @@ bool checkStatusBlink() {
   return true;
 }
 
+bool checkButtons() {
+  bool upd = false;
+  if (upButton.check() && upButton.pressed()) {
+    if (displayMode == 0) displayMode = D_MAX;
+    displayMode--;
+    upd = true;
+  }
+  if (downButton.check() && downButton.pressed()) {
+    displayMode++;
+    if (displayMode == D_MAX) displayMode = 0;
+    upd = true;
+  }
+  if (upd) displayResetTimeout.reset(DISPLAY_RESET_TIMEOUT);
+  if (displayResetTimeout.check()) {
+    if (displayMode != 0) upd = true;
+    displayMode = 0;
+  }
+  return upd;
+}
+
 //------- SETUP & MAIN -------
 
 void setup() {
@@ -100,5 +146,6 @@ void loop() {
   resetServerCheck();
   bool blink = checkStatusBlink();
   bool mercury = checkMercury();
-  if (blink || mercury) updateLCD(blink && validValues > 0);
+  bool button = checkButtons();
+  if (blink || mercury || button) updateLCD(blink && validValues > 0);
 }
