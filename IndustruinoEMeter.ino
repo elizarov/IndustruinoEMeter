@@ -12,32 +12,33 @@
 
 //------- Button ------
 
-Button upButton(23);
+Button upButton(25);
 Button enterButton(24);
-Button downButton(25);
+Button downButton(23);
 
 //------- STATE ------
 
 const unsigned long STATUS_BLINK_INTERVAL = 1000; // 1 sec
-const unsigned long DISPLAY_RESET_TIMEOUT = 10000; // 10 sec
+const unsigned long DISPLAY_RESET_TIMEOUT = 30000; // 30 sec
 
 Timeout statusTimeout(0);
 bool statusBlink;
 Timeout displayResetTimeout;
 
-enum { D_TOTAL, D_CUR_DAY, D_PREV_DAY, D_MAX };
+enum { D_TOTAL, D_CUR_DAY, D_PREV_DAY, D_CUR_MONTH, D_PREV_MONTH, D_CUR_YEAR, D_PREV_YEAR, D_TIME, D_MAX };
 
 char* displayNames[] = {
   "TOTAL",
   "CUR DAY",
-  "PREV DAY"
+  "PREV DAY",
+  "CUR MONTH",
+  "PREV MONTH",
+  "CUR YEAR",
+  "PREV YEAR",
+  "DATE/TIME"
 };
 
-fixnum32_3* displayData[] = {
-  totalEnergy,
-  curDayEnergy,
-  prevDayEnergy,
-};
+EnergyType displayTypes[] = { E_TOTAL, E_CUR_DAY, E_PREV_DAY, E_CUR_MONTH, E_PREV_MONTH, E_CUR_YEAR, E_PREV_YEAR, E_TOTAL };
 
 int displayMode = D_TOTAL;
 
@@ -76,9 +77,9 @@ void updateLCDPhase(uint8_t i) {
   lcdLog.println(buf);
 }
 
-void updateLCDEneryHeader() {
-  //              012345678901234567890
-  char buf[22] = " --               -- ";
+void updateLCDHeader() {
+  //              01234567890123456789
+  char buf[21] = " --               --";
   char* name = displayNames[displayMode];
   strncpy(&buf[4], name, strlen(name));
   lcdLog.println(buf);  
@@ -88,8 +89,23 @@ void updateLCDEnergy(uint8_t i) {
   //              012345678901234567890
   char buf[22] = "T ????????.??kWh     ";
   if (i > 0) buf[0] = '0' + i; 
-  displayData[displayMode][i].format(buf + 2, 11, FMT_RIGHT | 2);
+  displayEnergy[i].format(buf + 2, 11, FMT_RIGHT | 2);
   lcdLog.println(buf);
+}
+
+void updateLCDTime() {
+  //              01234567890123456789
+  char buf[21] = "  ??-??-?? ??:??:?? ";
+  char emp[21] = "                    ";
+  formatDecimal((int16_t)mercuryTime.year, buf + 2, 2, FMT_ZERO);
+  formatDecimal((int16_t)mercuryTime.month, buf + 5, 2, FMT_ZERO);
+  formatDecimal((int16_t)mercuryTime.date, buf + 8, 2, FMT_ZERO);
+  formatDecimal((int16_t)mercuryTime.hour, buf + 11, 2, FMT_ZERO);
+  formatDecimal((int16_t)mercuryTime.minute, buf + 14, 2, FMT_ZERO);
+  formatDecimal((int16_t)mercuryTime.second, buf + 17, 2, FMT_ZERO);
+  lcdLog.println(buf);
+  lcdLog.println(emp);
+  lcdLog.println(emp);  
 }
 
 void updateLCD(bool logStatus) {
@@ -97,9 +113,15 @@ void updateLCD(bool logStatus) {
   updateLCDSummary();
   for (uint8_t i = 1; i <= 3; i++)
     updateLCDPhase(i);
-  updateLCDEneryHeader();
-  for (uint8_t i = 0; i <= TARIFFS; i++)
-    updateLCDEnergy(i);
+  updateLCDHeader();
+  switch(displayMode) {
+    case D_TIME:
+      updateLCDTime();
+      break;
+    default:
+      for (uint8_t i = 0; i <= TARIFFS; i++)
+        updateLCDEnergy(i);
+  }
 }
 
 bool checkStatusBlink() {
@@ -125,6 +147,9 @@ bool checkButtons() {
   if (displayResetTimeout.check()) {
     if (displayMode != 0) upd = true;
     displayMode = 0;
+  }
+  if (upd) {
+    displayEnergyType = displayTypes[displayMode];
   }
   return upd;
 }

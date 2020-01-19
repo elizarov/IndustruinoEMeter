@@ -5,8 +5,6 @@
 #include <Print.h>
 #include <UC1701.h>
 
-extern UC1701 lcd;
-
 void lcdSetup();
 
 class LcdLogPrint : public Print {

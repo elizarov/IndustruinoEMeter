@@ -18,15 +18,18 @@ const unsigned long RS485_DELAY = 3;
 
 //------- PUBLIC STATE ------
 
+MercuryTime mercuryTime;
+EnergyType displayEnergyType;
+
 fixnum32_1 volts[4];
 fixnum32_1 amps[4];
 fixnum32_1 watts[4];
 fixnum32_1 hertz;
-fixnum32_3 totalEnergy[TARIFFS + 1];
+fixnum32_3 displayEnergy[TARIFFS + 1];
 fixnum32_3 curDayEnergy[TARIFFS + 1];
 fixnum32_3 prevDayEnergy[TARIFFS + 1];
 int8_t validValues = 0;
-int8_t expectedValues = 0;
+int8_t expectedValues = 1;
 
 //------- REQUESTS ------
 
@@ -48,11 +51,17 @@ struct OpenChannelReq : public Req {
   virtual void error(char* m);   
 };
 
+struct ReadTimeReq : public Req {
+  virtual uint8_t req_size();
+  virtual uint8_t res_size();
+  virtual void request();
+  virtual bool response();
+  virtual void error(char* m);   
+};
+
 template<prec_t prec> struct ReadValueReq : public Req {
-private:
   fixnum32_1& value;
   uint8_t code;
-public:
   ReadValueReq(fixnum32_1& _value, uint8_t _code) : value(_value), code(_code) {}
   virtual uint8_t req_size();
   virtual uint8_t res_size();
@@ -69,12 +78,10 @@ public:
 // x40 -- for current day
 // x50 -- for prev day
 struct ReadEnergyReq : public Req {
-private:
   fixnum32_3& value;
-  uint8_t num;
+  EnergyType type;
   uint8_t tariff;
-public:
-  ReadEnergyReq(fixnum32_3& _value, uint8_t _num, uint8_t _tariff) : value(_value), num(_num), tariff(_tariff) {}  
+  ReadEnergyReq(fixnum32_3& _value, EnergyType _type, uint8_t _tariff) : value(_value), type(_type), tariff(_tariff) {}  
   virtual uint8_t req_size();
   virtual uint8_t res_size();
   virtual void request();
@@ -164,6 +171,34 @@ void OpenChannelReq::error(char* m) {
   SerialUSB.println(m);
 }
 
+//------- ReadTimeReq ------
+
+uint8_t ReadTimeReq::req_size() { return 5; }
+
+void ReadTimeReq::request() {
+  buf[0] = RS485_ADDR;
+  buf[1] = 0x04; // read time
+  buf[2] = 0x00; // param
+}
+
+uint8_t ReadTimeReq::res_size() { return 11; }
+
+uint8_t bcd(uint8_t x) {
+  return (x >> 4) * 10 + (x & 0x0f);
+}
+
+bool ReadTimeReq::response() {
+  mercuryTime.second = bcd(buf[1]);
+  mercuryTime.minute = bcd(buf[2]);
+  mercuryTime.hour = bcd(buf[3]);
+  mercuryTime.date = bcd(buf[5]);
+  mercuryTime.month = bcd(buf[6]);
+  mercuryTime.year = bcd(buf[7]);
+  return true;
+}
+
+void ReadTimeReq::error(char* m) {}
+
 //------- ReadValueReq ------
 
 const int32_t INVALID_VALUE = 0x7fffffffL;
@@ -195,6 +230,16 @@ template<prec_t prec> void ReadValueReq<prec>::error(char* m) {
 uint8_t ReadEnergyReq::req_size() { return 6; }
 
 void ReadEnergyReq::request() {
+  uint8_t num = 0;
+  switch(type) {
+    case E_TOTAL: num = 0x00; break;
+    case E_CUR_DAY: num = 0x40; break;
+    case E_PREV_DAY: num = 0x50; break;
+    case E_CUR_MONTH: num = 0x30 + mercuryTime.month; break;
+    case E_PREV_MONTH: num = 0x30 + (mercuryTime.month + 10) % 12 + 1; break;
+    case E_CUR_YEAR: num = 0x10; break;
+    case E_PREV_YEAR: num = 0x20; break;
+  }
   buf[0] = RS485_ADDR;
   buf[1] = 0x05; // read summaries
   buf[2] = num;  // what kind of energy
@@ -218,25 +263,27 @@ void ReadEnergyReq::error(char* m) {
 
 //------- TOP-LEVEL STATE ------
 
-Req* first_req = nullptr;
-Req* last_req = nullptr;
+OpenChannelReq openChannel;
+Req* last_req = &openChannel;
 Req* cur_req = nullptr;
 int cur_state;
 int ok_values;
+ReadEnergyReq* displayEnergyReq[TARIFFS+1];
 
 //------- TOP-LEVEL SETUP/CHECK ------
 
 void add(Req* req) {
-  if (first_req == nullptr) first_req = req;
-  if (last_req != nullptr) last_req->next = req;
+  last_req->next = req;
   last_req = req;
   expectedValues++;
 }
 
 void reinitLoop() {
-  cur_req = first_req;
+  cur_req = &openChannel;
   cur_state = 0;
   ok_values = 0;
+  for (uint8_t i = 0; i <= TARIFFS; i++)
+    displayEnergyReq[i]->type = displayEnergyType;
 }
 
 void setupMercury() {
@@ -244,7 +291,7 @@ void setupMercury() {
   rs485.begin(RS485_BAUD);
   pinMode(RS485_RTS_PIN, OUTPUT);
   // allocate requests
-  add(new OpenChannelReq());
+  add(new ReadTimeReq());
   for (uint8_t i = 1; i <= 3; i++)
     add(new ReadValueReq<2>(volts[i], 0x10 + i));
   for (uint8_t i = 1; i <= 3; i++)
@@ -253,16 +300,16 @@ void setupMercury() {
     add(new ReadValueReq<2>(watts[i], 0x00 + i));
   add(new ReadValueReq<2>(hertz, 0x40));  
   for (uint8_t i = 0; i <= TARIFFS; i++)
-    add(new ReadEnergyReq(totalEnergy[i], 0x00, i));
+    add(displayEnergyReq[i] = new ReadEnergyReq(displayEnergy[i], E_TOTAL, i));
   for (uint8_t i = 0; i <= TARIFFS; i++)
-    add(new ReadEnergyReq(curDayEnergy[i], 0x40, i));
+    add(new ReadEnergyReq(curDayEnergy[i], E_CUR_DAY, i));
   for (uint8_t i = 0; i <= TARIFFS; i++)
-    add(new ReadEnergyReq(prevDayEnergy[i], 0x50, i));  
+    add(new ReadEnergyReq(prevDayEnergy[i], E_PREV_DAY, i));  
   reinitLoop();  
 }
 
 void resetAllValues() {
-  Req* req = first_req->next;
+  Req* req = openChannel.next;
   while(req != nullptr) {
     req->error("no channel");  
     req = req->next;
@@ -282,7 +329,7 @@ bool checkMercury() {
   cur_state = cur_req->check(cur_state);
   switch(cur_state) {
     case S_ERROR:
-      if (cur_req == first_req) { 
+      if (cur_req == &openChannel) { 
         // open channel error - retry from scratch
         resetAllValues();
         reinitLoop();
