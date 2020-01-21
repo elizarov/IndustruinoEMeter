@@ -4,10 +4,11 @@
 #include <Timeout.h>
 #include <Button.h>
 #include <HardwareSerial.h>
+#include <Reset.h>
 
 #include "lcd.h"
 #include "EthernetConfig.h"
-#include "ResetServer.h"
+#include "HttpServer.h"
 #include "Mercury.h"
 
 //------- Button ------
@@ -45,7 +46,7 @@ int displayMode = D_TOTAL;
 
 //------- LCD ------
 
-void updateLCDSummary() {
+void printSummary(Print& out) {
   //              01234567890123456789
   char buf[21] = "[?]  ??.?Hz   ?????W";
   int8_t missingValues = expectedValues - validValues;
@@ -65,41 +66,39 @@ void updateLCDSummary() {
   buf[1] = status;
   hertz.format(buf + 5, 4, FMT_RIGHT | 1);
   watts[0].format(buf + 14, 5, FMT_RIGHT | 0);
-  lcdLog.println(buf);
+  out.println(buf);
 }
 
-void updateLCDPhase(uint8_t i) {
+void printPhase(Print& out, uint8_t i) {
   //              01234567890123456789
   char buf[21] = "I: ???V ??.?A ?????W";
   buf[0] = '0' + i;
   volts[i].format(buf + 3, 3, FMT_RIGHT | 0);
   amps[i].format(buf + 8, 4, FMT_RIGHT | 1);
   watts[i].format(buf + 14, 5, FMT_RIGHT | 0);
-  lcdLog.println(buf);
+  out.println(buf);
 }
 
-void updateLCDHeader() {
+void printHeader(Print& out) {
   //              01234567890123456789
   char buf[21] = " --               --";
   char* name = displayNames[displayMode];
   strncpy(&buf[4], name, strlen(name));
-  lcdLog.println(buf);  
+  out.println(buf);
 }
 
-void updateLCDEnergy(uint8_t i) {
+void printEnergy(Print& out, uint8_t i) {
   //              012345678901234567890
   char buf[22] = "T ????????.??kWh     ";
-  if (i > 0) buf[0] = '0' + i; 
+  if (i > 0) buf[0] = '0' + i;
   displayEnergy[i].format(buf + 2, 11, FMT_RIGHT | 2);
-  lcdLog.println(buf);
+  out.println(buf);
 }
 
-
-
-void updateLCDTime() {
+void printTime(Print& out) {
   //              01234567890123456789
-  char buf[21] = "  ??-??-?? ??:??:?? ";
   char emp[21] = "                    ";
+  char buf[21] = "  ??-??-?? ??:??:?? ";
   char upd[21] = " update: ???ms / ?? ";
   formatDecimal(mercuryTime.year, buf + 2, 2, FMT_ZERO);
   formatDecimal(mercuryTime.month, buf + 5, 2, FMT_ZERO);
@@ -109,25 +108,29 @@ void updateLCDTime() {
   formatDecimal(mercuryTime.second, buf + 17, 2, FMT_ZERO);
   formatDecimal(mercuryUpdateTime, upd + 9, 3, FMT_RIGHT);
   formatDecimal(validValues, upd + 17, 2, FMT_RIGHT);
-  lcdLog.println(buf);
-  lcdLog.println(emp);
-  lcdLog.println(upd);  
+  out.println(emp);
+  out.println(buf);
+  out.println(upd);
+}
+
+void printStatus(Print& out) {
+  printSummary(out);
+  for (uint8_t i = 1; i <= 3; i++)
+    printPhase(out, i);
+  printHeader(out);
+  switch(displayMode) {
+    case D_TIME:
+      printTime(out);
+      break;
+    default:
+      for (uint8_t i = 0; i <= TARIFFS; i++)
+        printEnergy(out, i);
+  }
 }
 
 void updateLCD(bool logStatus) {
   lcdLog.reset(logStatus);
-  updateLCDSummary();
-  for (uint8_t i = 1; i <= 3; i++)
-    updateLCDPhase(i);
-  updateLCDHeader();
-  switch(displayMode) {
-    case D_TIME:
-      updateLCDTime();
-      break;
-    default:
-      for (uint8_t i = 0; i <= TARIFFS; i++)
-        updateLCDEnergy(i);
-  }
+  printStatus(lcdLog);
 }
 
 bool checkStatusBlink() {
@@ -160,6 +163,22 @@ bool checkButtons() {
   return upd;
 }
 
+//------- HTTP ROUTES -------
+
+void httpRoot() {
+  httpConn.print("<pre>");
+  printStatus(httpConn);
+  printTime(httpConn);
+  httpConn.println("</pre>");
+}
+
+void httpReset() {
+  httpConn.println("Rebooting");
+  httpConnDone();
+  delay(10);
+  immediateReset();
+}
+
 //------- SETUP & MAIN -------
 
 void setup() {
@@ -168,13 +187,23 @@ void setup() {
   lcdLog.println("{Industruino EMeter}");
   // Ethernet setup
   ethernetSetup();
-  resetServerSetup();
+  // Http setup
+  if (ethernetPresent) {
+    httpServerRoute("/", &httpRoot);
+    httpServerRoute("/reset", &httpReset);
+    httpServerSetup();
+    // print http addr
+    lcdLog.print(localIp);
+    lcdLog.print(":");
+    lcdLog.print(httpPort);
+    lcdLog.println();
+  }
   // RS485 setup
   setupMercury();
 }
 
 void loop() {
-  resetServerCheck();
+  if (ethernetPresent) httpServerCheck();
   bool blink = checkStatusBlink();
   bool mercury = checkMercury();
   bool button = checkButtons();
