@@ -1,0 +1,9 @@
+#include "push.h"
+
+char haworks_host[] = "__________________";
+char haworks_data_url[] = "/data.csv";
+char haworks_message_url[] = "/message.csv";
+char haworks_auth[] = "Authenticate: basic _______________________________________"
+
+PushDest haworks_data(0x01, haworks_host, 80, haworks_data_url, haworks_auth);
+PushMsgDest haworks_message(0x02, haworks_host, 80, haworks_message_url, haworks_auth);

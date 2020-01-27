@@ -10,6 +10,7 @@
 #include "EthernetConfig.h"
 #include "HttpServer.h"
 #include "Mercury.h"
+#include "push.h"
 
 //------- Button ------
 
@@ -95,11 +96,14 @@ void printEnergy(Print& out, uint8_t i) {
   out.println(buf);
 }
 
+int32_t daystart = millis();
+int16_t updays = 0;
+
 void printTime(Print& out) {
   //              01234567890123456789
-  char emp[21] = "                    ";
   char buf[21] = "  ??-??-?? ??:??:?? ";
-  char upd[21] = " update: ???ms / ?? ";
+  char upd[21] = " rescan: ???ms / ?? ";
+  char upt[21] = " up: ????d ??:??:?? ";
   formatDecimal(mercuryTime.year, buf + 2, 2, FMT_ZERO);
   formatDecimal(mercuryTime.month, buf + 5, 2, FMT_ZERO);
   formatDecimal(mercuryTime.date, buf + 8, 2, FMT_ZERO);
@@ -108,9 +112,24 @@ void printTime(Print& out) {
   formatDecimal(mercuryTime.second, buf + 17, 2, FMT_ZERO);
   formatDecimal(mercuryUpdateTime, upd + 9, 3, FMT_RIGHT);
   formatDecimal(validValues, upd + 17, 2, FMT_RIGHT);
-  out.println(emp);
+  // prepare uptime
+  int32_t time = millis();
+  while (time - daystart > Timeout::DAY) {
+    daystart += Timeout::DAY;
+    updays++;
+  }
+  formatDecimal(updays, upt + 5, 4, FMT_RIGHT);
+  time -= daystart;
+  time /= 1000; // convert seconds
+  formatDecimal(time % 60, upt + 17, 2, FMT_ZERO);
+  time /= 60; // minutes
+  formatDecimal(time % 60, upt + 14, 2, FMT_ZERO);
+  time /= 60; // hours
+  formatDecimal(time, upt + 11, 2, FMT_ZERO);
+  // output
   out.println(buf);
   out.println(upd);
+  out.println(upt);
 }
 
 void printStatus(Print& out) {
@@ -179,6 +198,57 @@ void httpReset() {
   immediateReset();
 }
 
+//------- PUSH DATA -------
+
+PushItem* hertzTag;
+PushItem* wattsTag[4];
+PushItem* voltsTag[4];
+PushItem* ampsTag[4];
+PushItem* curDayEnergyTag[TARIFFS + 1];
+PushItem* prevDayEnergyTag[TARIFFS + 1];
+
+PushItem* setupTag(char* prefix, int i, char* suffix) {
+  auto pl = strlen(prefix);
+  auto sl = strlen(suffix);
+  int il = i > 0 ? 1 : 0;
+  char* c = new char[pl + il + sl + 1];
+  strncpy(c, prefix, pl);
+  if (i > 0) c[pl] = '0' + i;
+  strncpy(c + pl + il, suffix, sl);
+  c[pl + il + sl] = 0;
+  return pushTag(c);
+}
+
+void setupPushTags() {
+  hertzTag = pushTag("Ef");
+  for (int i = 0; i <= 3; i++) {
+    wattsTag[i] = setupTag("E", i, "");
+    if (i > 0) {
+      voltsTag[i] = setupTag("E", i, "v");
+      ampsTag[i] = setupTag("E", i, "a");
+    }
+  }
+  for (int i = 0; i <= TARIFFS; i++) {
+    curDayEnergyTag[i] = setupTag("E", i, "c");
+    prevDayEnergyTag[i] = setupTag("E", i, "p");
+  }
+}
+
+void pushData() {
+  push(hertzTag, hertz);
+  for (int i = 0; i <= 3; i++) {
+    push(wattsTag[i], watts[i]);
+    if (i > 0) {
+      push(voltsTag[i], volts[i]);
+      push(ampsTag[i], amps[i]);
+    }
+  }
+  for (int i = 0; i <= TARIFFS; i++) {
+    push(curDayEnergyTag[i], curDayEnergy[i]);
+    push(prevDayEnergyTag[i], prevDayEnergy[i]);
+  }
+}
+
 //------- SETUP & MAIN -------
 
 void setup() {
@@ -200,12 +270,21 @@ void setup() {
   }
   // RS485 setup
   setupMercury();
+  setupPushTags();
 }
 
 void loop() {
-  if (ethernetPresent) httpServerCheck();
+  if (ethernetPresent) {
+    httpServerCheck();
+    checkPush();
+  }
   bool blink = checkStatusBlink();
   bool mercury = checkMercury();
   bool button = checkButtons();
-  if (blink || mercury || button) updateLCD(blink && validValues > 0);
+  if (blink || mercury || button) {
+    updateLCD(blink && validValues > 0);
+  }
+  if (mercury) {
+    pushData();
+  }
 }
