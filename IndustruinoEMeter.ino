@@ -96,8 +96,25 @@ void printEnergy(Print& out, uint8_t i) {
   out.println(buf);
 }
 
-int32_t daystart = millis();
+unsigned long daystart = millis();
+unsigned long secstart = daystart;
 int16_t updays = 0;
+
+bool checkUp() {
+  unsigned long time = millis();
+  bool upd = false;
+  while (time - daystart > Timeout::DAY) {
+    daystart += Timeout::DAY;
+    secstart = daystart;
+    updays++;
+    upd = true;
+  }  
+  while (time - secstart > Timeout::SECOND) {
+    secstart += Timeout::SECOND;
+    upd = true;
+  }
+  return upd;
+}
 
 void printTime(Print& out) {
   //              01234567890123456789
@@ -113,14 +130,8 @@ void printTime(Print& out) {
   formatDecimal(mercuryUpdateTime, upd + 9, 3, FMT_RIGHT);
   formatDecimal(validValues, upd + 17, 2, FMT_RIGHT);
   // prepare uptime
-  int32_t time = millis();
-  while (time - daystart > Timeout::DAY) {
-    daystart += Timeout::DAY;
-    updays++;
-  }
   formatDecimal(updays, upt + 5, 4, FMT_RIGHT);
-  time -= daystart;
-  time /= 1000; // convert seconds
+  int32_t time = (millis() - daystart) / 1000; // convert seconds
   formatDecimal(time % 60, upt + 17, 2, FMT_ZERO);
   time /= 60; // minutes
   formatDecimal(time % 60, upt + 14, 2, FMT_ZERO);
@@ -270,7 +281,7 @@ void setup() {
   }
   // RS485 setup
   setupMercury();
-  setupPushTags();
+  //setupPushTags();
 }
 
 void loop() {
@@ -281,10 +292,11 @@ void loop() {
   bool blink = checkStatusBlink();
   bool mercury = checkMercury();
   bool button = checkButtons();
-  if (blink || mercury || button) {
+  bool up = checkUp();
+  if (blink || mercury || button || up) {
     updateLCD(blink && validValues > 0);
   }
   if (mercury) {
-    pushData();
+    //pushData();
   }
 }

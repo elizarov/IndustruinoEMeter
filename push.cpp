@@ -376,7 +376,7 @@ void PushMsgDest::check() {
 }
 
 void checkPush() {
-  haworks_data.check();
+  //haworks_data.check();
   //haworks_message.check(); // todo: upload messages, too
 }
 
