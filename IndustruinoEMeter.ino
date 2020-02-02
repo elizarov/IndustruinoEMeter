@@ -281,7 +281,7 @@ void setup() {
   }
   // RS485 setup
   setupMercury();
-  //setupPushTags();
+  setupPushTags();
 }
 
 void loop() {
@@ -297,6 +297,6 @@ void loop() {
     updateLCD(blink && validValues > 0);
   }
   if (mercury) {
-    //pushData();
+    pushData();
   }
 }

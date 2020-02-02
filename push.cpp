@@ -376,18 +376,17 @@ void PushMsgDest::check() {
 }
 
 void checkPush() {
-  //haworks_data.check();
+  haworks_data.check();
   //haworks_message.check(); // todo: upload messages, too
 }
 
 PushItem* pushTag(const char* tag) {
-  PushItem* cur = last_item;
-  while (cur != nullptr) {
+  for (PushItem* cur = last_item; cur != nullptr; cur = cur->next) {
     if (strcmp(cur->tag, tag) == 0) return cur;
   }
-  cur = new PushItem{last_item, tag};
-  last_item = cur;
-  return cur;
+  PushItem* item = new PushItem{last_item, tag};
+  last_item = item;
+  return item;
 }
 
 void push(PushItem* item, int32_t val, byte prec) {
